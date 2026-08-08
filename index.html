@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Emoji Morph</title>
-<meta name="description" content="Climb a staircase of emoji rebus puzzles — guess the word or phrase from the picture clues. A new step unlocks every day.">
+<meta name="description" content="Climb a staircase of emoji rebus puzzles — guess the word or phrase from the picture clues. A fresh staircase every day.">
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2599254542757189"
      crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -113,9 +113,6 @@
   .msg { min-height: 20px; text-align: center; font-size: 13px; margin-top: 10px; color: var(--sub); }
   .msg.bad { color: var(--bad); }
   .msg.good { color: var(--good); font-weight: 600; }
-  .waiting-card { text-align: center; padding: 20px 0; }
-  .waiting-card .big-icon { font-size: 48px; margin-bottom: 10px; }
-  .waiting-card p { color: var(--sub); font-size: 14px; line-height: 1.5; }
   .win-panel { text-align: center; margin-top: 8px; }
   .win-panel h2 { margin: 4px 0; font-size: 22px; }
   .win-panel p { color: var(--sub); font-size: 14px; margin: 4px 0 14px; }
@@ -187,11 +184,6 @@
       </div>
     </div>
 
-    <div id="waitingArea" class="waiting-card hidden">
-      <div class="big-icon">🪜</div>
-      <p id="waitingText"></p>
-    </div>
-
     <div id="winPanel" class="win-panel hidden">
       <h2 id="winHeading">Solved!</h2>
       <p id="winSummary"></p>
@@ -206,7 +198,7 @@
   </div>
 
   <footer>
-    Your own personal climb · one new rung unlocks each day
+    Your own personal climb · a fresh staircase every day
     <br>
     <a class="support-link" href="https://buymeacoffee.com/anthonydegani" target="_blank" rel="noopener">Support this game</a>
     ·
@@ -223,12 +215,13 @@
     <h2>How to Play</h2>
     <p>Each row of emoji is a picture clue for a word or phrase. Figure it out and type your guess.</p>
     <ul>
-      <li>One new rung unlocks every day — solve it to keep climbing.</li>
+      <li>Climb as many rungs as you want in one sitting — all 24 are ready to go.</li>
       <li>Rungs get harder as you climb: simple words near the bottom, tricky idioms near the top.</li>
       <li>A wrong guess just slips you back a step — no penalty, try again.</li>
+      <li>Finish all 24 to keep your streak going — a brand new staircase is ready tomorrow.</li>
       <li>Stuck? Tap <strong>Parent hint</strong> for a nudge toward the theme.</li>
     </ul>
-    <p class="modal-foot">This is your own personal staircase — nobody else sees the same pace as you.</p>
+    <p class="modal-foot">This is your own personal climb — nobody else sees your pace or progress.</p>
     <button class="btn-primary" id="howToPlayCloseBtn" style="width:100%">Let's climb!</button>
   </div>
 </div>
@@ -331,9 +324,10 @@
   }
 
   // ---------- Game state ----------
-  let currentRung = 0;   // 0-based index into RUNGS for the rung currently in play
-  let climbNumber = 1;   // increments each time the full staircase is completed
-  let mistakesThisRung = 0;
+  // Each calendar day is a fresh climb through the same 24 rungs -- rungIndex and
+  // mistakesToday both reset whenever the persisted progress date isn't today.
+  let rungIndex = 0;      // 0-based index into RUNGS for today's climb
+  let mistakesToday = 0;  // cumulative wrong guesses across today's whole climb
   let currentShareText = "";
 
   const els = {
@@ -349,8 +343,6 @@
     guessBtn: document.getElementById("guessBtn"),
     hintBtn: document.getElementById("hintBtn"),
     msg: document.getElementById("msg"),
-    waitingArea: document.getElementById("waitingArea"),
-    waitingText: document.getElementById("waitingText"),
     winPanel: document.getElementById("winPanel"),
     winHeading: document.getElementById("winHeading"),
     winSummary: document.getElementById("winSummary"),
@@ -378,37 +370,42 @@
   }
 
   // ---------- Persistence ----------
-  function loadProgress() {
-    currentRung = parseInt(localStorage.getItem(PREFIX + ":currentRung") || "0", 10);
-    climbNumber = parseInt(localStorage.getItem(PREFIX + ":climbNumber") || "1", 10);
+  // Each calendar day resets to a fresh climb through the same 24 rungs -- there's
+  // no more one-rung-per-day gate, so a player can do all of them in one sitting if
+  // they want. Only the streak (see below) actually persists across days.
+  function loadTodayProgress() {
+    const savedDate = localStorage.getItem(PREFIX + ":progressDate");
+    if (savedDate === todayKey()) {
+      rungIndex = parseInt(localStorage.getItem(PREFIX + ":rungIndex") || "0", 10);
+      mistakesToday = parseInt(localStorage.getItem(PREFIX + ":mistakesToday") || "0", 10);
+    } else {
+      rungIndex = 0;
+      mistakesToday = 0;
+    }
   }
-  function saveProgress() {
-    localStorage.setItem(PREFIX + ":currentRung", String(currentRung));
-    localStorage.setItem(PREFIX + ":climbNumber", String(climbNumber));
-  }
-  // A rung is available the moment there's no record of solving one today yet --
-  // whether that's because the player is brand new, or because their last solve
-  // was any earlier day (yesterday or further back). Only ever one new rung per
-  // calendar day, regardless of how many days were skipped in between.
-  function todaysRungAvailable() {
-    const lastSolve = localStorage.getItem(PREFIX + ":lastSolveDate");
-    return !lastSolve || lastSolve !== todayKey();
+  function saveTodayProgress() {
+    localStorage.setItem(PREFIX + ":progressDate", todayKey());
+    localStorage.setItem(PREFIX + ":rungIndex", String(rungIndex));
+    localStorage.setItem(PREFIX + ":mistakesToday", String(mistakesToday));
   }
 
   // ---------- Streak (same tested pattern as Word Ladder / Crown Zones) ----------
+  // "Won" now means finishing today's entire climb, matching how the other two
+  // games' streak keys off finishing the one daily puzzle -- partial progress
+  // through today's rungs doesn't bump it.
   function updateStreakDisplay() {
     const storedStreak = parseInt(localStorage.getItem(PREFIX + ":streak") || "0", 10);
-    const lastWin = localStorage.getItem(PREFIX + ":lastSolveDate");
+    const lastWin = localStorage.getItem(PREFIX + ":lastWinDate");
     const today = todayKey();
     const yesterday = yesterdayKey();
 
     let displayStreak = storedStreak;
     let nudgeText = null;
     if (lastWin === yesterday && storedStreak > 0) {
-      nudgeText = `You last climbed ${formatShortDate(lastWin)} — play today to keep your streak`;
+      nudgeText = `You last finished a climb ${formatShortDate(lastWin)} — finish today's to keep your streak`;
     } else if (lastWin && lastWin !== today && lastWin !== yesterday && storedStreak > 0) {
       displayStreak = 0;
-      nudgeText = `Your streak ended — you last climbed ${formatShortDate(lastWin)}`;
+      nudgeText = `Your streak ended — you last finished a climb ${formatShortDate(lastWin)}`;
     }
 
     els.streakCount.textContent = displayStreak;
@@ -419,14 +416,14 @@
       els.streakNudge.classList.add("hidden");
     }
   }
-  function bumpStreakOnSolve() {
+  function bumpStreakOnFinish() {
     const key = todayKey();
-    const lastWin = localStorage.getItem(PREFIX + ":lastSolveDate");
+    const lastWin = localStorage.getItem(PREFIX + ":lastWinDate");
     if (lastWin === key) return;
     let streak = parseInt(localStorage.getItem(PREFIX + ":streak") || "0", 10);
     streak = (lastWin === yesterdayKey()) ? streak + 1 : 1;
     localStorage.setItem(PREFIX + ":streak", String(streak));
-    localStorage.setItem(PREFIX + ":lastSolveDate", key);
+    localStorage.setItem(PREFIX + ":lastWinDate", key);
     updateStreakDisplay();
   }
 
@@ -436,99 +433,89 @@
     RUNGS.forEach((_, i) => {
       const div = document.createElement("div");
       div.className = "step";
-      if (i < currentRung) { div.className += " solved"; div.textContent = "✓"; }
-      else if (i === currentRung) { div.className += " current"; div.textContent = String(i + 1); }
+      if (i < rungIndex) { div.className += " solved"; div.textContent = "✓"; }
+      else if (i === rungIndex) { div.className += " current"; div.textContent = String(i + 1); }
       else { div.textContent = String(i + 1); }
       els.staircase.appendChild(div);
     });
-    els.rungLabel.textContent = String(Math.min(currentRung + 1, RUNGS.length));
+    els.rungLabel.textContent = String(Math.min(rungIndex + 1, RUNGS.length));
     els.rungTotal.textContent = String(RUNGS.length);
   }
 
   function showPuzzleScreen() {
     els.puzzleArea.classList.remove("hidden");
-    els.waitingArea.classList.add("hidden");
     els.winPanel.classList.add("hidden");
-    const rung = RUNGS[currentRung];
+    const rung = RUNGS[rungIndex];
     els.puzzleEmoji.textContent = rung.emoji;
     els.puzzleTheme.textContent = "";
     els.guessInput.value = "";
     setMsg("");
-    mistakesThisRung = 0;
   }
 
-  function showWaitingScreen() {
-    els.puzzleArea.classList.add("hidden");
-    els.waitingArea.classList.remove("hidden");
-    els.winPanel.classList.add("hidden");
-    els.waitingText.textContent = "You've climbed today's rung! Come back tomorrow for the next one.";
-  }
-
-  function showFinishedClimbScreen() {
-    els.puzzleArea.classList.add("hidden");
-    els.waitingArea.classList.remove("hidden");
-    els.winPanel.classList.add("hidden");
-    els.waitingText.textContent = `You reached the top of climb ${climbNumber}! A brand new staircase starts tomorrow.`;
-  }
-
-  function render() {
-    renderStaircase();
-    if (currentRung >= RUNGS.length) {
-      showFinishedClimbScreen();
-    } else if (!todaysRungAvailable()) {
-      showWaitingScreen();
-    } else {
-      showPuzzleScreen();
-    }
-  }
-
-  function submitGuess() {
-    if (currentRung >= RUNGS.length || !todaysRungAvailable()) return;
-    const raw = els.guessInput.value;
-    if (!raw.trim()) return;
-    const rung = RUNGS[currentRung];
-    if (normalizeGuess(raw) === normalizeGuess(rung.answer)) {
-      solveCurrentRung();
-    } else {
-      mistakesThisRung++;
-      setMsg("Not quite — slipped back a step. Try again!", "bad");
-      els.guessInput.value = "";
-      els.guessInput.focus();
-    }
-  }
-
-  function solveCurrentRung() {
-    const rung = RUNGS[currentRung];
-    const rungNumber = currentRung + 1;
-    bumpStreakOnSolve();
-    currentRung++;
-    if (currentRung >= RUNGS.length) {
-      currentRung = 0;
-      climbNumber++;
-    }
-    saveProgress();
-
+  // Recomputed entirely from persisted state every time it's called, so it's safe
+  // to show again on a reload/revisit later the same day -- previously this state
+  // showed a dead-end "come back tomorrow" message with no way to re-reach the
+  // share button once you navigated away from the moment you actually finished.
+  function showTodayCompleteScreen() {
     els.puzzleArea.classList.add("hidden");
     els.winPanel.classList.remove("hidden");
-    renderStaircase();
-
-    const perfect = mistakesThisRung === 0;
-    els.winHeading.textContent = "Solved!";
+    const perfect = mistakesToday === 0;
+    els.winHeading.textContent = "Climb complete!";
     els.winSummary.textContent = perfect
-      ? `Rung ${rungNumber} — no slips, straight up!`
-      : `Rung ${rungNumber} — ${mistakesThisRung} slip${mistakesThisRung === 1 ? "" : "s"} along the way`;
+      ? `All ${RUNGS.length} rungs — no slips, straight to the top!`
+      : `All ${RUNGS.length} rungs — ${mistakesToday} slip${mistakesToday === 1 ? "" : "s"} along the way`;
 
     const challenge = perfect
-      ? `I just solved rung ${rungNumber} of my Emoji Morph climb — no slips! ${rung.emoji}`
-      : `I just solved rung ${rungNumber} of my Emoji Morph climb (${mistakesThisRung} slip${mistakesThisRung === 1 ? "" : "s"}) ${rung.emoji}`;
+      ? `I just finished today's Emoji Morph climb — all ${RUNGS.length} rungs, no slips! 🏆`
+      : `I just finished today's Emoji Morph climb (${mistakesToday} slip${mistakesToday === 1 ? "" : "s"}) 🏆`;
     const shareUrl = GAME_URL;
     currentShareText = `${challenge}\n${shareUrl}`;
     els.shareChallenge.textContent = challenge;
     els.shareLink.textContent = shareUrl;
   }
 
+  function render() {
+    renderStaircase();
+    if (rungIndex >= RUNGS.length) {
+      showTodayCompleteScreen();
+    } else {
+      showPuzzleScreen();
+    }
+  }
+
+  function submitGuess() {
+    if (rungIndex >= RUNGS.length) return;
+    const raw = els.guessInput.value;
+    if (!raw.trim()) return;
+    const rung = RUNGS[rungIndex];
+    if (normalizeGuess(raw) === normalizeGuess(rung.answer)) {
+      advanceRung();
+    } else {
+      mistakesToday++;
+      saveTodayProgress();
+      setMsg("Not quite — slipped back a step. Try again!", "bad");
+      els.guessInput.value = "";
+      els.guessInput.focus();
+    }
+  }
+
+  function advanceRung() {
+    rungIndex++;
+    saveTodayProgress();
+    renderStaircase();
+    if (rungIndex >= RUNGS.length) {
+      bumpStreakOnFinish();
+      showTodayCompleteScreen();
+    } else {
+      setMsg("Correct! Next one…", "good");
+      // A brief pause to register the win before auto-advancing keeps a multi-rung
+      // session moving without an interstitial screen after every single rung.
+      setTimeout(showPuzzleScreen, 900);
+    }
+  }
+
   function giveHint() {
-    const rung = RUNGS[currentRung];
+    const rung = RUNGS[rungIndex];
     els.puzzleTheme.textContent = `Hint: it's about ${rung.theme}`;
   }
 
@@ -603,7 +590,7 @@
   function hideAddToHomeScreenModal() { els.addToHomeModal.classList.add("hidden"); }
 
   // ---------- Init ----------
-  loadProgress();
+  loadTodayProgress();
   updateStreakDisplay();
   render();
   initInstallBanner();
