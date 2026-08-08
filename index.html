@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emoji Morph</title>
+<meta name="description" content="Climb a staircase of emoji rebus puzzles — guess the word or phrase from the picture clues. A new step unlocks every day.">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2599254542757189"
+     crossorigin="anonymous"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4b6cff">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Emoji Morph">
+<style>
+  :root {
+    --bg: #f4f3ef; --panel: #ffffff; --ink: #1c1c1e; --sub: #6b6b70;
+    --accent: #4b6cff; --accent-ink: #ffffff; --tile-border: #d3d1cb; --tile-target: #eef0ff;
+    --good: #3aa76d; --bad: #e0554a; --warn: #b5750f; --locked: #e4e2da; --shadow: 0 8px 24px rgba(0,0,0,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171b; --panel: #212228; --ink: #f2f2f4; --sub: #9a9aa2;
+      --accent: #7b93ff; --accent-ink: #10111a; --tile-border: #3a3b42; --tile-target: #2a2c3c;
+      --good: #4fc98a; --bad: #ef6d63; --warn: #e0a84f; --locked: #2a2b31; --shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; justify-content: center; padding: 32px 16px 64px;
+  }
+  .wrap { width: 100%; max-width: 480px; }
+  header { position: relative; text-align: center; margin-bottom: 20px; }
+  .help-btn {
+    position: absolute; top: 0; right: 0;
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 1px solid var(--tile-border); background: var(--panel); color: var(--sub);
+    font-weight: 700; font-size: 14px; padding: 0; cursor: pointer; line-height: 1;
+  }
+  .help-btn:hover { color: var(--ink); border-color: var(--accent); }
+  .install-banner {
+    display: flex; align-items: center; gap: 8px; justify-content: center;
+    background: var(--tile-target); border: 1px solid var(--tile-border); border-radius: 12px;
+    padding: 8px 12px; margin-bottom: 14px; font-size: 12px; color: var(--sub); text-align: left;
+  }
+  .install-btn {
+    background: var(--accent); color: var(--accent-ink); border: none; border-radius: 8px;
+    padding: 5px 10px; font-size: 12px; font-weight: 600; cursor: pointer; flex-shrink: 0;
+  }
+  .install-close {
+    background: none; border: none; color: var(--sub); cursor: pointer; font-size: 14px;
+    padding: 0 2px; flex-shrink: 0; line-height: 1;
+  }
+  .install-close:hover { color: var(--ink); }
+  h1 { font-size: 28px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .tagline { color: var(--sub); font-size: 14px; margin: 0; }
+  .datebar {
+    display: flex; justify-content: center; gap: 8px; align-items: center;
+    margin-top: 10px; font-size: 13px; color: var(--sub);
+  }
+  .streak {
+    background: var(--panel); border: 1px solid var(--tile-border);
+    border-radius: 999px; padding: 4px 12px; box-shadow: var(--shadow);
+  }
+  .streak-nudge { margin: 6px 0 0; font-size: 12px; color: var(--warn); text-align: center; }
+  .panel {
+    background: var(--panel); border-radius: 20px; box-shadow: var(--shadow);
+    padding: 20px; margin-top: 18px;
+  }
+  .rung-label { text-align: center; font-size: 13px; color: var(--sub); margin: 0 0 10px; }
+  .rung-label strong { color: var(--ink); }
+  .staircase {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin: 0 0 20px;
+  }
+  .step {
+    aspect-ratio: 1; border-radius: 8px; background: var(--locked);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: var(--sub);
+  }
+  .step.solved { background: var(--good); color: #fff; }
+  .step.current { background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 2px var(--accent); }
+  .puzzle-card { text-align: center; }
+  .puzzle-emoji {
+    font-size: 56px; letter-spacing: 8px; margin: 8px 0 4px; line-height: 1.3;
+  }
+  .puzzle-theme {
+    font-size: 12px; color: var(--sub); min-height: 18px; margin: 0 0 16px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .guess-row { display: flex; gap: 8px; margin-bottom: 10px; }
+  input[type="text"] {
+    flex: 1; border: 1px solid var(--tile-border); border-radius: 12px;
+    padding: 12px 14px; font-size: 16px; font-family: inherit; background: var(--bg); color: var(--ink);
+  }
+  input[type="text"]:focus { outline: none; border-color: var(--accent); }
+  button {
+    border: none; border-radius: 12px; font-weight: 600; cursor: pointer;
+    font-size: 14px; padding: 12px 16px;
+  }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent; color: var(--sub); border: 1px solid var(--tile-border); flex: 1;
+  }
+  .btn-ghost:hover { color: var(--ink); border-color: var(--accent); }
+  .toolbar { display: flex; gap: 8px; margin-top: 10px; }
+  .msg { min-height: 20px; text-align: center; font-size: 13px; margin-top: 10px; color: var(--sub); }
+  .msg.bad { color: var(--bad); }
+  .msg.good { color: var(--good); font-weight: 600; }
+  .waiting-card { text-align: center; padding: 20px 0; }
+  .waiting-card .big-icon { font-size: 48px; margin-bottom: 10px; }
+  .waiting-card p { color: var(--sub); font-size: 14px; line-height: 1.5; }
+  .win-panel { text-align: center; margin-top: 8px; }
+  .win-panel h2 { margin: 4px 0; font-size: 22px; }
+  .win-panel p { color: var(--sub); font-size: 14px; margin: 4px 0 14px; }
+  .share-box {
+    background: var(--tile-target); border-radius: 14px; padding: 16px 18px;
+    text-align: center; margin-bottom: 12px;
+  }
+  .share-challenge { font-weight: 700; font-size: 14px; color: var(--ink); margin: 0 0 10px; line-height: 1.4; }
+  .share-link {
+    font-size: 12px; color: var(--accent); margin: 0; word-break: break-all;
+    padding-top: 10px; border-top: 1px dashed var(--tile-border);
+  }
+  footer { text-align: center; margin-top: 20px; color: var(--sub); font-size: 12px; }
+  .support-link {
+    display: inline-block; margin-top: 8px; color: var(--sub);
+    text-decoration: none; border-bottom: 1px dotted var(--tile-border);
+  }
+  .support-link:hover { color: var(--accent); border-color: var(--accent); }
+  button.support-link { padding: 0; border-radius: 0; font-weight: 400; font-size: 12px; background: none; }
+  .hidden { display: none !important; }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px; z-index: 100;
+  }
+  .modal-panel {
+    background: var(--panel); border-radius: 20px; box-shadow: var(--shadow);
+    padding: 24px; max-width: 400px; width: 100%; max-height: 90vh; overflow-y: auto;
+  }
+  .modal-panel h2 { margin: 0 0 12px; font-size: 22px; text-align: center; }
+  .modal-panel p { color: var(--ink); font-size: 14px; line-height: 1.5; margin: 0 0 14px; }
+  .modal-panel ul, .modal-panel ol { margin: 0 0 14px; padding-left: 20px; font-size: 14px; color: var(--ink); line-height: 1.6; }
+  .modal-panel ol.big-steps { font-size: 17px; line-height: 1.8; }
+  .modal-foot { color: var(--sub); font-size: 12px; text-align: center; margin: 0 0 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="installBanner" class="install-banner hidden">
+    <span id="installBannerText"></span>
+    <button id="installBtn" class="install-btn hidden">Install</button>
+    <button id="installBannerClose" class="install-close" aria-label="Dismiss">✕</button>
+  </div>
+
+  <header>
+    <button id="helpBtn" class="help-btn" aria-label="How to play">?</button>
+    <h1>Emoji Morph</h1>
+    <p class="tagline">Guess the word or phrase, one emoji step at a time.</p>
+    <div class="datebar">
+      <span class="streak"><span id="streakCount">0</span> day streak</span>
+    </div>
+    <p id="streakNudge" class="streak-nudge hidden"></p>
+  </header>
+
+  <div class="panel">
+    <p class="rung-label">Rung <strong id="rungLabel">1</strong> of <strong id="rungTotal">24</strong></p>
+    <div id="staircase" class="staircase"></div>
+
+    <div id="puzzleArea" class="puzzle-card">
+      <div class="puzzle-emoji" id="puzzleEmoji"></div>
+      <p class="puzzle-theme" id="puzzleTheme"></p>
+      <div class="guess-row">
+        <input type="text" id="guessInput" placeholder="type your guess…" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="btn-primary" id="guessBtn">Guess</button>
+      </div>
+      <div id="msg" class="msg"></div>
+      <div class="toolbar">
+        <button class="btn-ghost" id="hintBtn">Parent hint</button>
+      </div>
+    </div>
+
+    <div id="waitingArea" class="waiting-card hidden">
+      <div class="big-icon">🪜</div>
+      <p id="waitingText"></p>
+    </div>
+
+    <div id="winPanel" class="win-panel hidden">
+      <h2 id="winHeading">Solved!</h2>
+      <p id="winSummary"></p>
+      <div class="share-box">
+        <p class="share-challenge" id="shareChallenge"></p>
+        <p class="share-link" id="shareLink"></p>
+      </div>
+      <div class="toolbar">
+        <button class="btn-primary" id="shareBtn" style="flex:1">Share Result</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Your own personal climb · one new rung unlocks each day
+    <br>
+    <a class="support-link" href="https://buymeacoffee.com/anthonydegani" target="_blank" rel="noopener">Support this game</a>
+    ·
+    <button id="notifyBtn" class="support-link hidden">Get a daily reminder</button>
+    <br>
+    <a class="support-link" href="../">More Games</a>
+    ·
+    <a class="support-link" href="privacy.html">Privacy Policy</a>
+  </footer>
+</div>
+
+<div id="howToPlay" class="modal-overlay hidden">
+  <div class="modal-panel">
+    <h2>How to Play</h2>
+    <p>Each row of emoji is a picture clue for a word or phrase. Figure it out and type your guess.</p>
+    <ul>
+      <li>One new rung unlocks every day — solve it to keep climbing.</li>
+      <li>Rungs get harder as you climb: simple words near the bottom, tricky idioms near the top.</li>
+      <li>A wrong guess just slips you back a step — no penalty, try again.</li>
+      <li>Stuck? Tap <strong>Parent hint</strong> for a nudge toward the theme.</li>
+    </ul>
+    <p class="modal-foot">This is your own personal staircase — nobody else sees the same pace as you.</p>
+    <button class="btn-primary" id="howToPlayCloseBtn" style="width:100%">Let's climb!</button>
+  </div>
+</div>
+
+<div id="addToHomeModal" class="modal-overlay hidden">
+  <div class="modal-panel">
+    <h2>Get Reminders</h2>
+    <p>To get a daily reminder when your next rung unlocks, add Emoji Morph to your Home Screen. It only takes two taps:</p>
+    <ol class="big-steps">
+      <li id="addToHomeStep1"></li>
+      <li id="addToHomeStep2"></li>
+    </ol>
+    <p class="modal-foot hidden" id="addToHomeTip"></p>
+    <p class="modal-foot">Then open Emoji Morph from your Home Screen icon and tap the reminder button there.</p>
+    <button class="btn-primary" id="addToHomeCloseBtn" style="width:100%">Got it</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  "use strict";
+
+  const GAME_URL = "https://anthonydeganijr-bot.github.io/emoji-morph/";
+  const PREFIX = "emojimorph";
+
+  function isStandalone() {
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+  function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  }
+
+  function iosAddToHomeInstructions() {
+    if (/CriOS/.test(navigator.userAgent)) {
+      return {
+        step1: 'Tap the <strong>Share</strong> icon (a square with an arrow) in the <strong>top-right</strong> corner.',
+        step2: 'Scroll down and tap <strong>"Add to Home Screen"</strong>.',
+        tip: "",
+      };
+    }
+    if (/FxiOS/.test(navigator.userAgent) || /EdgiOS/.test(navigator.userAgent)) {
+      return {
+        step1: 'Tap the <strong>menu</strong> (•••) or <strong>Share</strong> icon.',
+        step2: 'Look for <strong>"Share..."</strong> then <strong>"Add to Home Screen"</strong>.',
+        tip: "",
+      };
+    }
+    return {
+      step1: 'Tap the <strong>Share</strong> icon (a square with an arrow) at the <strong>bottom</strong> of the screen.',
+      step2: 'Tap <strong>"Add to Home Screen"</strong>.',
+      tip: 'Don\'t see it in the list? Scroll to the very bottom and tap <strong>"Edit Actions..."</strong>, then tap the + icon next to "Add to Home Screen" — then go back and tap it.',
+    };
+  }
+
+  // ---------- Puzzle content ----------
+  // Ordered by difficulty: single compound words first, idioms toward the top.
+  const RUNGS = [
+    { emoji: "☀️🔥", answer: "sunburn", theme: "Nature" },
+    { emoji: "🌙💡", answer: "moonlight", theme: "Home" },
+    { emoji: "🍯🐝", answer: "honeybee", theme: "Animals" },
+    { emoji: "🦶⚽", answer: "football", theme: "Sports" },
+    { emoji: "🔥🪰", answer: "firefly", theme: "Bugs" },
+    { emoji: "🌧️🎀", answer: "rainbow", theme: "Weather" },
+    { emoji: "🐴🪰", answer: "horsefly", theme: "Animals" },
+    { emoji: "☀️🌼", answer: "sunflower", theme: "Nature" },
+    { emoji: "🏖️🏰", answer: "sandcastle", theme: "Beach" },
+    { emoji: "⭐🐟", answer: "starfish", theme: "Ocean" },
+    { emoji: "✋✍️", answer: "handwriting", theme: "School" },
+    { emoji: "🧊🍦", answer: "ice cream", theme: "Food" },
+    { emoji: "🌕🚶", answer: "moonwalk", theme: "Space" },
+    { emoji: "📚🐛", answer: "bookworm", theme: "School" },
+    { emoji: "🌧️🧥", answer: "raincoat", theme: "Weather" },
+    { emoji: "🐉🪰", answer: "dragonfly", theme: "Fantasy" },
+    { emoji: "🍕🍰", answer: "piece of cake", theme: "Food" },
+    { emoji: "🌧️🐱🐶", answer: "raining cats and dogs", theme: "Weather" },
+    { emoji: "🌙🔵1️⃣", answer: "once in a blue moon", theme: "Time" },
+    { emoji: "🚶🌳", answer: "walk in the park", theme: "Effort" },
+    { emoji: "⬇️🌦️", answer: "under the weather", theme: "Health" },
+    { emoji: "⏰🐦🐛", answer: "the early bird catches the worm", theme: "Birds" },
+    { emoji: "🦋😬", answer: "butterflies in your stomach", theme: "Emotion" },
+    { emoji: "🐦✋", answer: "a bird in the hand is worth two in the bush", theme: "Summit" },
+  ];
+
+  function normalizeGuess(s) {
+    return s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+  }
+
+  // ---------- Seeded date helpers (shared pattern with the other games) ----------
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function yesterdayKey() {
+    const y = new Date(Date.now() - 86400000);
+    return y.getFullYear() + "-" + String(y.getMonth() + 1).padStart(2, "0") + "-" + String(y.getDate()).padStart(2, "0");
+  }
+  function formatShortDate(key) {
+    const [y, m, d] = key.split("-").map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  // ---------- Game state ----------
+  let currentRung = 0;   // 0-based index into RUNGS for the rung currently in play
+  let climbNumber = 1;   // increments each time the full staircase is completed
+  let mistakesThisRung = 0;
+  let currentShareText = "";
+
+  const els = {
+    streakCount: document.getElementById("streakCount"),
+    streakNudge: document.getElementById("streakNudge"),
+    rungLabel: document.getElementById("rungLabel"),
+    rungTotal: document.getElementById("rungTotal"),
+    staircase: document.getElementById("staircase"),
+    puzzleArea: document.getElementById("puzzleArea"),
+    puzzleEmoji: document.getElementById("puzzleEmoji"),
+    puzzleTheme: document.getElementById("puzzleTheme"),
+    guessInput: document.getElementById("guessInput"),
+    guessBtn: document.getElementById("guessBtn"),
+    hintBtn: document.getElementById("hintBtn"),
+    msg: document.getElementById("msg"),
+    waitingArea: document.getElementById("waitingArea"),
+    waitingText: document.getElementById("waitingText"),
+    winPanel: document.getElementById("winPanel"),
+    winHeading: document.getElementById("winHeading"),
+    winSummary: document.getElementById("winSummary"),
+    shareChallenge: document.getElementById("shareChallenge"),
+    shareLink: document.getElementById("shareLink"),
+    shareBtn: document.getElementById("shareBtn"),
+    notifyBtn: document.getElementById("notifyBtn"),
+    helpBtn: document.getElementById("helpBtn"),
+    howToPlay: document.getElementById("howToPlay"),
+    howToPlayCloseBtn: document.getElementById("howToPlayCloseBtn"),
+    installBanner: document.getElementById("installBanner"),
+    installBannerText: document.getElementById("installBannerText"),
+    installBtn: document.getElementById("installBtn"),
+    installBannerClose: document.getElementById("installBannerClose"),
+    addToHomeModal: document.getElementById("addToHomeModal"),
+    addToHomeCloseBtn: document.getElementById("addToHomeCloseBtn"),
+    addToHomeStep1: document.getElementById("addToHomeStep1"),
+    addToHomeStep2: document.getElementById("addToHomeStep2"),
+    addToHomeTip: document.getElementById("addToHomeTip"),
+  };
+
+  function setMsg(text, type) {
+    els.msg.textContent = text || "";
+    els.msg.className = "msg" + (type ? " " + type : "");
+  }
+
+  // ---------- Persistence ----------
+  function loadProgress() {
+    currentRung = parseInt(localStorage.getItem(PREFIX + ":currentRung") || "0", 10);
+    climbNumber = parseInt(localStorage.getItem(PREFIX + ":climbNumber") || "1", 10);
+  }
+  function saveProgress() {
+    localStorage.setItem(PREFIX + ":currentRung", String(currentRung));
+    localStorage.setItem(PREFIX + ":climbNumber", String(climbNumber));
+  }
+  // A rung is available the moment there's no record of solving one today yet --
+  // whether that's because the player is brand new, or because their last solve
+  // was any earlier day (yesterday or further back). Only ever one new rung per
+  // calendar day, regardless of how many days were skipped in between.
+  function todaysRungAvailable() {
+    const lastSolve = localStorage.getItem(PREFIX + ":lastSolveDate");
+    return !lastSolve || lastSolve !== todayKey();
+  }
+
+  // ---------- Streak (same tested pattern as Word Ladder / Crown Zones) ----------
+  function updateStreakDisplay() {
+    const storedStreak = parseInt(localStorage.getItem(PREFIX + ":streak") || "0", 10);
+    const lastWin = localStorage.getItem(PREFIX + ":lastSolveDate");
+    const today = todayKey();
+    const yesterday = yesterdayKey();
+
+    let displayStreak = storedStreak;
+    let nudgeText = null;
+    if (lastWin === yesterday && storedStreak > 0) {
+      nudgeText = `You last climbed ${formatShortDate(lastWin)} — play today to keep your streak`;
+    } else if (lastWin && lastWin !== today && lastWin !== yesterday && storedStreak > 0) {
+      displayStreak = 0;
+      nudgeText = `Your streak ended — you last climbed ${formatShortDate(lastWin)}`;
+    }
+
+    els.streakCount.textContent = displayStreak;
+    if (nudgeText) {
+      els.streakNudge.textContent = nudgeText;
+      els.streakNudge.classList.remove("hidden");
+    } else {
+      els.streakNudge.classList.add("hidden");
+    }
+  }
+  function bumpStreakOnSolve() {
+    const key = todayKey();
+    const lastWin = localStorage.getItem(PREFIX + ":lastSolveDate");
+    if (lastWin === key) return;
+    let streak = parseInt(localStorage.getItem(PREFIX + ":streak") || "0", 10);
+    streak = (lastWin === yesterdayKey()) ? streak + 1 : 1;
+    localStorage.setItem(PREFIX + ":streak", String(streak));
+    localStorage.setItem(PREFIX + ":lastSolveDate", key);
+    updateStreakDisplay();
+  }
+
+  // ---------- Staircase rendering ----------
+  function renderStaircase() {
+    els.staircase.innerHTML = "";
+    RUNGS.forEach((_, i) => {
+      const div = document.createElement("div");
+      div.className = "step";
+      if (i < currentRung) { div.className += " solved"; div.textContent = "✓"; }
+      else if (i === currentRung) { div.className += " current"; div.textContent = String(i + 1); }
+      else { div.textContent = String(i + 1); }
+      els.staircase.appendChild(div);
+    });
+    els.rungLabel.textContent = String(Math.min(currentRung + 1, RUNGS.length));
+    els.rungTotal.textContent = String(RUNGS.length);
+  }
+
+  function showPuzzleScreen() {
+    els.puzzleArea.classList.remove("hidden");
+    els.waitingArea.classList.add("hidden");
+    els.winPanel.classList.add("hidden");
+    const rung = RUNGS[currentRung];
+    els.puzzleEmoji.textContent = rung.emoji;
+    els.puzzleTheme.textContent = "";
+    els.guessInput.value = "";
+    setMsg("");
+    mistakesThisRung = 0;
+  }
+
+  function showWaitingScreen() {
+    els.puzzleArea.classList.add("hidden");
+    els.waitingArea.classList.remove("hidden");
+    els.winPanel.classList.add("hidden");
+    els.waitingText.textContent = "You've climbed today's rung! Come back tomorrow for the next one.";
+  }
+
+  function showFinishedClimbScreen() {
+    els.puzzleArea.classList.add("hidden");
+    els.waitingArea.classList.remove("hidden");
+    els.winPanel.classList.add("hidden");
+    els.waitingText.textContent = `You reached the top of climb ${climbNumber}! A brand new staircase starts tomorrow.`;
+  }
+
+  function render() {
+    renderStaircase();
+    if (currentRung >= RUNGS.length) {
+      showFinishedClimbScreen();
+    } else if (!todaysRungAvailable()) {
+      showWaitingScreen();
+    } else {
+      showPuzzleScreen();
+    }
+  }
+
+  function submitGuess() {
+    if (currentRung >= RUNGS.length || !todaysRungAvailable()) return;
+    const raw = els.guessInput.value;
+    if (!raw.trim()) return;
+    const rung = RUNGS[currentRung];
+    if (normalizeGuess(raw) === normalizeGuess(rung.answer)) {
+      solveCurrentRung();
+    } else {
+      mistakesThisRung++;
+      setMsg("Not quite — slipped back a step. Try again!", "bad");
+      els.guessInput.value = "";
+      els.guessInput.focus();
+    }
+  }
+
+  function solveCurrentRung() {
+    const rung = RUNGS[currentRung];
+    const rungNumber = currentRung + 1;
+    bumpStreakOnSolve();
+    currentRung++;
+    if (currentRung >= RUNGS.length) {
+      currentRung = 0;
+      climbNumber++;
+    }
+    saveProgress();
+
+    els.puzzleArea.classList.add("hidden");
+    els.winPanel.classList.remove("hidden");
+    renderStaircase();
+
+    const perfect = mistakesThisRung === 0;
+    els.winHeading.textContent = "Solved!";
+    els.winSummary.textContent = perfect
+      ? `Rung ${rungNumber} — no slips, straight up!`
+      : `Rung ${rungNumber} — ${mistakesThisRung} slip${mistakesThisRung === 1 ? "" : "s"} along the way`;
+
+    const challenge = perfect
+      ? `I just solved rung ${rungNumber} of my Emoji Morph climb — no slips! ${rung.emoji}`
+      : `I just solved rung ${rungNumber} of my Emoji Morph climb (${mistakesThisRung} slip${mistakesThisRung === 1 ? "" : "s"}) ${rung.emoji}`;
+    const shareUrl = GAME_URL;
+    currentShareText = `${challenge}\n${shareUrl}`;
+    els.shareChallenge.textContent = challenge;
+    els.shareLink.textContent = shareUrl;
+  }
+
+  function giveHint() {
+    const rung = RUNGS[currentRung];
+    els.puzzleTheme.textContent = `Hint: it's about ${rung.theme}`;
+  }
+
+  // ---------- Wire up ----------
+  els.guessBtn.addEventListener("click", submitGuess);
+  els.guessInput.addEventListener("keydown", e => { if (e.key === "Enter") submitGuess(); });
+  els.hintBtn.addEventListener("click", giveHint);
+  els.helpBtn.addEventListener("click", showHowToPlay);
+  els.howToPlayCloseBtn.addEventListener("click", hideHowToPlay);
+  els.addToHomeCloseBtn.addEventListener("click", hideAddToHomeScreenModal);
+  els.shareBtn.addEventListener("click", async () => {
+    const text = currentShareText;
+    if (navigator.share) {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      els.shareBtn.textContent = "Copied!";
+      setTimeout(() => els.shareBtn.textContent = "Share Result", 1500);
+    } catch {
+      alert(text);
+    }
+  });
+
+  // ---------- How to play ----------
+  function showHowToPlay() { els.howToPlay.classList.remove("hidden"); }
+  function hideHowToPlay() {
+    els.howToPlay.classList.add("hidden");
+    localStorage.setItem(PREFIX + ":seenHowToPlay", "1");
+  }
+
+  // ---------- Install prompt ----------
+  let deferredInstallPrompt = null;
+  function initInstallBanner() {
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      if (localStorage.getItem(PREFIX + ":dismissedInstall")) return;
+      els.installBannerText.textContent = "Install Emoji Morph as an app for the full experience.";
+      els.installBtn.classList.remove("hidden");
+      els.installBanner.classList.remove("hidden");
+    });
+    els.installBtn.addEventListener("click", async () => {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      els.installBanner.classList.add("hidden");
+    });
+    els.installBannerClose.addEventListener("click", () => {
+      els.installBanner.classList.add("hidden");
+      localStorage.setItem(PREFIX + ":dismissedInstall", "1");
+    });
+  }
+  function showAddToHomeScreenModal() {
+    const instr = iosAddToHomeInstructions();
+    els.addToHomeStep1.innerHTML = instr.step1;
+    els.addToHomeStep2.innerHTML = instr.step2;
+    if (instr.tip) {
+      els.addToHomeTip.innerHTML = instr.tip;
+      els.addToHomeTip.classList.remove("hidden");
+    } else {
+      els.addToHomeTip.classList.add("hidden");
+    }
+    els.addToHomeModal.classList.remove("hidden");
+  }
+  function hideAddToHomeScreenModal() { els.addToHomeModal.classList.add("hidden"); }
+
+  // ---------- Init ----------
+  loadProgress();
+  updateStreakDisplay();
+  render();
+  initInstallBanner();
+  if (isIOS() && !isStandalone()) {
+    els.notifyBtn.classList.remove("hidden");
+    els.notifyBtn.textContent = "Add to Home Screen for reminders";
+    els.notifyBtn.addEventListener("click", showAddToHomeScreenModal);
+  }
+  if (!localStorage.getItem(PREFIX + ":seenHowToPlay")) {
+    showHowToPlay();
+  }
+})();
+</script>
+</body>
+</html>
